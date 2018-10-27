@@ -19,11 +19,13 @@ using namespace Menu;
 #define WATER_IN_RELAY_PIN 2
 #define WATER_OUT_RELAY_PIN 3
 
+#define BUTTON_PIN 8
+
 #define MAX_DEPTH 2
 
 Atm_volume_sensor volume_sensor;
 Atm_led water_in_relay, water_out_relay;
-Atm_controller filling_controller, overfilling_controller;
+Atm_controller filling_controller, transferring_controller;
 Atm_encoder rotary;
 Atm_button button;
 Atm_bit filling, transferring;
@@ -147,7 +149,7 @@ void setup() {
 
   // Sensor reading
   volume_sensor.begin(10)
-    //.average(avgbuffer, sizeof(avgbuffer))
+    .average(avgbuffer, sizeof(avgbuffer))
     .onChange(request_update_display);
 
   // Flags
@@ -157,7 +159,7 @@ void setup() {
     .onChange(false, water_in_relay, water_in_relay.EVT_OFF)
     .off();
 
-  transferring.begin().
+  transferring.begin()
     .onChange(true, water_out_relay, water_out_relay.EVT_ON)
     .onChange(true, filling, filling.EVT_OFF)
     .onChange(false, water_out_relay, water_out_relay.EVT_OFF)
@@ -165,25 +167,29 @@ void setup() {
 
   // Controllers
   filling_controller.begin()
-    .IF(volume_sensor, '+', fill_target) // fill target reached
+    .IF(volume_sensor, '+', (fill_target*10)) // fill target reached
     .OR(volume_sensor, '+', max_volume) // tank is full
     .onChange(true, filling, filling.EVT_OFF);
+
+  transferring_controller.begin()
+    .IF(volume_sensor, '<', 10) // empty tank
+    .onChange(true, transferring, transferring.EVT_OFF);
+
 
   // Water in/out pump relay
   water_in_relay.begin(WATER_IN_RELAY_PIN, false).off();
   water_out_relay.begin(WATER_OUT_RELAY_PIN, true).off();
 
-  // Add a comparator to make sure we don't overfill or try to transfer from an empty tank.
 
   // Trigger button
-  button.begin(8)
+  button.begin(BUTTON_PIN)
     .debounce(100)
     .onPress( [] (int idx, int v, int up) {
       switch ( v ) {
-        case 1:
+        case 1: // short press
           nav.doNav(navCmd(enterCmd));
           return;
-        case 2:
+        case 2: // longpress
           nav.doNav(navCmd(escCmd));
           return;
         }
@@ -204,39 +210,4 @@ void setup() {
 void loop() {
   nav.doOutput();
   automaton.run();
-
-/*
-    // Start I2C Transmission
-    Wire.beginTransmission(ADCAddr);
-    // Select data register
-    Wire.write(0x00);
-    // Stop I2C Transmission
-    Wire.endTransmission();
-
-    // Request 2 bytes of data
-    Wire.requestFrom(ADCAddr, 2);
-
-    // Read 2 bytes of data
-    // raw_adc msb, raw_adc lsb
-    if (Wire.available() == 2)
-    {
-      data[0] = Wire.read();
-      data[1] = Wire.read();
-    }
-
-    // Convert the data to 12-bits
-    int raw_adc = (data[0] & 0x0F) * 256 + data[1];
-    if (raw_adc > 2047)
-    {
-      raw_adc -= 4095;
-    }
-
-
-
-    // Output data to serial monitor
-    //Serial.print("Digital value of Analog input : ");
-    //Serial.println(raw_adc);
-    delay(300);
-    */
-
 }
